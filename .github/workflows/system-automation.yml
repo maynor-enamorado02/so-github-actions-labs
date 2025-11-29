@@ -2,12 +2,10 @@
 name: System Automation Workflow
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
-  automation-job:
+  automation-windows:
     runs-on: windows-latest
 
     steps:
@@ -15,41 +13,128 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) Variables de entorno
-      - name: Set environment variables
+      # 2) Variables de entorno (y ejemplo de secreto)
+      - name: Set environment variables and secrets
         shell: pwsh
         run: |
+          # Variables de entorno para el run
           "MY_ENV_VAR=HelloWorld" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      # 3) Script PowerShell con manejo de errores
+          # Si tienes un secreto MY_SECRET, lo exponemos en una variable temporal
+          if ("${{ secrets.MY_SECRET }}" -ne "") {
+            "MY_SECRET_RUNTIME=${{ secrets.MY_SECRET }}" | Out-File -FilePath $env:GITHUB_ENV -Append
+          }
+
+      # 3) Script con manejo de errores
       - name: Run PowerShell with error handling
         shell: pwsh
         run: |
           try {
             # Leer/escribir archivos
-            $filePath = "output.txt"
-            "Archivo generado por el workflow. Var: $env:MY_ENV_VAR" | Out-File $filePath -Encoding UTF8
+            $filePath = "output-windows.txt"
+            "Archivo generado por Windows. Var: $env:MY_ENV_VAR" | Out-File $filePath -Encoding UTF8
 
-            # Permisos (icacls en Windows)
-            icacls $filePath /grant Everyone:(F) | Out-Null
+            # Si hay secreto, añade una línea (opcional)
+            if ($env:MY_SECRET_RUNTIME) {
+              "Secreto presente (no se imprime su valor por seguridad)." | Out-File $filePath -Encoding UTF8 -Append
+            }
 
-            # Proceso en segundo plano (ejemplo: ping oculto)
+            # Gestionar permisos (icacls en Windows) - Sintaxis corregida
+            icacls $filePath /grant "Everyone:(F)" | Out-Null
+
+            # Proceso en segundo plano (ejemplo simple)
             Start-Process -FilePath "powershell.exe" -ArgumentList "Start-Sleep -Seconds 5" -WindowStyle Hidden
 
             # Confirmación
-            Write-Host "OK: script terminado"
+            Write-Host "OK: script Windows terminado"
           }
           catch {
-            Write-Host "ERROR: $($_.Exception.Message)"
+            Write-Host "ERROR en Windows: $($_.Exception.Message)"
             exit 1
           }
 
-      # 4) Subir artifact (v4)
-      - name: Upload artifact (v4)
+      # 4) Subir artifact con v4 (nombre único)
+      - name: Upload artifact (Windows, v4)
         uses: actions/upload-artifact@v4
         with:
           name: system-automation-windows
           path: |
-            output.txt
-        
+            output-windows.txt
+          # Si necesitas subir contenido bajo carpetas ocultas:
+          # include-hidden-files: true
+
+  automation-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set environment variables and secrets
+        shell: bash
+        run: |
+          echo "MY_ENV_VAR=HolaMundo" >> "$GITHUB_ENV"
+          if [ -n "${{ secrets.MY_SECRET }}" ]; then
+            echo "MY_SECRET_RUNTIME=${{ secrets.MY_SECRET }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run Bash with error handling
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'echo "ERROR en Linux en la línea $LINENO"; exit 1' ERR
+
+          # Leer/escribir
+          echo "Archivo generado en Linux. Var: ${MY_ENV_VAR}" > output-linux.txt
+          if [ -n "${MY_SECRET_RUNTIME:-}" ]; then
+            echo "Secreto presente (no se imprime su valor por seguridad)." >> output-linux.txt
+          fi
+
+          # Permisos (chmod en Linux)
+          chmod 644 output-linux.txt
+
+          # Proceso en segundo plano
+          nohup bash -c 'sleep 5' >/dev/null 2>&1 &
+
+          echo "OK: script Linux terminado"
+
+      - name: Upload artifact (Linux, v4)
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-automation-linux
+          path: output-linux.txt
+
+  #  CONSUMO DE ARTIFACTS
+
+  consume-artifacts:
+    runs-on: ubuntu-latest
+    needs: [automation-windows, automation-linux]
+
+    steps:
+      - name: Download artifacts (pattern + merge)
+        uses: actions/download-artifact@v4
+        with:
+          pattern: system-automation-*
+          path: artifacts/
+          merge-multiple: true
+
+      - name: List downloaded files
+        shell: bash
+        run: |
+          echo "Contenido de artifacts/:"
+          ls -la artifacts/ || true
+
+      # Ejemplo de uso posterior: concatenar outputs
+      - name: Concatenate outputs
+        shell: bash
+        run: |
+          cat artifacts/output-windows.txt artifacts/output-linux.txt > artifacts/combined.txt
+          echo "Archivo combinado listo: artifacts/combined.txt"
+
+      - name: Upload combined artifact (v4)
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-automation-combined
+          path: artifacts/combined.txt
+
 
