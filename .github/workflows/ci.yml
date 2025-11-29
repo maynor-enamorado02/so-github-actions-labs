@@ -23,17 +23,18 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       
-      - name: Create package.json (SIMPLE)
+      - name: Create package.json (Windows compatible)
+        shell: bash
         run: |
           cat > package.json << 'EOF'
           {
             "name": "github-actions-labs",
             "version": "1.0.0",
             "scripts": {
-              "test": "echo 'Tests passed' && exit 0",
-              "test:coverage": "mkdir -p coverage && echo 'Coverage report' > coverage/report.txt",
-              "lint": "echo 'Lint passed'",
-              "build": "mkdir -p dist && echo 'Build complete' > dist/build.txt"
+              "test": "echo \"Tests passed on ${{ matrix.os }}\" && exit 0",
+              "test:coverage": "mkdir -p coverage && echo \"Coverage: 95%\" > coverage/report.txt",
+              "lint": "echo \"Linting completed\"",
+              "build": "mkdir -p dist && echo \"Build complete\" > dist/build.txt"
             }
           }
           EOF
@@ -70,15 +71,13 @@ jobs:
       
       - name: Create package.json
         run: |
-          cat > package.json << 'EOF'
-          {
-            "name": "github-actions-labs", 
-            "version": "1.0.0",
+          echo '{
+            "name": "github-actions-labs",
+            "version": "1.0.0", 
             "scripts": {
-              "build": "mkdir -p dist && echo 'Production build' > dist/build.txt"
+              "build": "mkdir -p dist && echo \"Production build\" > dist/build.txt"
             }
-          }
-          EOF
+          }' > package.json
       
       - name: Build
         run: npm run build
@@ -93,12 +92,7 @@ jobs:
     name: ✅ CI Complete
     needs: [test, build]
     runs-on: ubuntu-latest
-    if: always()
     
     steps:
       - name: Show success
-        run: |
-          echo "🎉 CI PIPELINE EXITOSO"
-          echo "✅ 3 Sistemas Operativos"
-          echo "✅ 2 Versiones Node.js" 
-          echo "✅ Build de producción"
+        run: echo "🎉 CI COMPLETED - 3 OS, 2 Node versions, Build successful"
