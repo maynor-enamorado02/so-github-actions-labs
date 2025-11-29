@@ -1,17 +1,19 @@
-FROM alpine:latest
+FROM python:3.9-alpine
 
-# Instalar herramientas básicas
-RUN apk add --no-cache curl python3 py3-pip && \
-    pip3 install flask
+# Copiar requirements primero para cachear dependencias
+COPY requirements.txt .
+
+# Instalar dependencias
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Crear directorio de trabajo
 WORKDIR /app
 
-# Copiar script de la aplicación
+# Copiar aplicación
 COPY app.py .
 
 # Exponer puerto
 EXPOSE 5000
 
 # Comando por defecto
-CMD ["python3", "app.py"]
+CMD ["python", "app.py"]
