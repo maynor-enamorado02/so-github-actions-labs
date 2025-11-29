@@ -2,12 +2,9 @@ import unittest
 import os
 import tempfile
 import shutil
-import sys
 
-# Agregar src al path
-sys.path.append('src')
-
-from app import SimpleApp
+# Importación directa sin sys.path
+from src.app import SimpleApp
 
 class TestSimpleApp(unittest.TestCase):
     def setUp(self):
