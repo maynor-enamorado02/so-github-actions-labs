@@ -1,61 +1,67 @@
 import logging
 import os
 from datetime import datetime
-from .file_manager import FileManager
 
-# Configuración de logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('app.log'),
-        logging.StreamHandler()
-    ]
-)
-
+# Configuración simple de logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 class SimpleApp:
     def __init__(self):
-        self.file_manager = FileManager()
+        self.data_dir = "data"
+        os.makedirs(self.data_dir, exist_ok=True)
         logger.info("Aplicación inicializada")
     
     def process_data(self, data):
         """Procesa datos y los guarda en archivo"""
         try:
             logger.info(f"Procesando datos: {data}")
-            
-            # Simular procesamiento
             processed_data = f"PROCESADO: {data.upper()} - {datetime.now()}"
             
             # Guardar en archivo
-            filename = self.file_manager.save_data(processed_data)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"data_{timestamp}.txt"
+            filepath = os.path.join(self.data_dir, filename)
+            
+            with open(filepath, 'w') as f:
+                f.write(processed_data)
             
             logger.info(f"Datos guardados en: {filename}")
             return processed_data
             
         except Exception as e:
             logger.error(f"Error procesando datos: {e}")
-            raise
+            return f"ERROR: {e}"
     
     def get_statistics(self):
         """Obtiene estadísticas de los archivos procesados"""
         try:
-            stats = self.file_manager.get_file_stats()
+            if not os.path.exists(self.data_dir):
+                return {"file_count": 0, "total_size": 0}
+            
+            files = os.listdir(self.data_dir)
+            total_size = 0
+            
+            for file in files:
+                filepath = os.path.join(self.data_dir, file)
+                if os.path.isfile(filepath):
+                    total_size += os.path.getsize(filepath)
+            
+            stats = {
+                "file_count": len(files),
+                "total_size_bytes": total_size
+            }
+            
             logger.info(f"Estadísticas obtenidas: {stats}")
             return stats
         except Exception as e:
             logger.error(f"Error obteniendo estadísticas: {e}")
-            raise
+            return {"error": str(e)}
 
 def main():
     app = SimpleApp()
-    
-    # Ejemplo de uso
-    sample_data = "Hola mundo desde CI/CD Pipeline"
-    result = app.process_data(sample_data)
+    result = app.process_data("Hola mundo CI/CD")
     print(f"Resultado: {result}")
-    
     stats = app.get_statistics()
     print(f"Estadísticas: {stats}")
 
