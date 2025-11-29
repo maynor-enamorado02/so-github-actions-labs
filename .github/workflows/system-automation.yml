@@ -2,55 +2,59 @@
 name: System Automation Workflow
 
 on:
-  workflow_dispatch:
-    branches:
-      - main
+  push:
+    branches: [main]
 
 jobs:
   system-automation:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Clonar el repositorio
+      # 1) Clonar el repo
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # 2. Configurar variables y secretos
+      # 2) Variables/secretos
       - name: Set environment variables
         run: |
           echo "MY_VAR=HelloWorld" >> $GITHUB_ENV
         env:
           SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
 
-      # 3. Ejecutar script Bash
+      # 3) Script Bash con manejo de errores
       - name: Run automation script
-        run: |
-          set -e  # Detener si hay error
-          echo "=== Inicio del script ==="
-          
-          # Leer y escribir archivos
-          echo "Escribiendo archivo..."
-          echo "Contenido generado por workflow" > output.txt
-          
-          # Cambiar permisos
-          chmod 755 output.txt
-          
-          # Crear proceso en segundo plano
-          (sleep 5 && echo "Proceso en segundo plano completado") &
-          
-          # Usar variable de entorno y secreto
-          echo "Variable: $MY_VAR"
-          echo "Secreto: $SECRET_TOKEN"
-          
-          # Verificar archivo
-          cat output.txt
-          
-          echo "=== Fin del script ==="
         shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== Inicio ==="
 
-      # 4. Subir artifact
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
+          # Leer/escribir archivos
+          echo "Contenido generado por workflow" > output.txt
+
+          # Permisos (Linux)
+          chmod 755 output.txt
+
+          # Proceso en segundo plano
+          (sleep 5 && echo "BG listo" > bg.log) &
+
+          # Usar entorno y secreto
+          echo "Var: $MY_VAR"
+          # Nunca imprimas secretos en logs
+          test -n "$SECRET_TOKEN" || { echo "Falta SECRET_TOKEN"; exit 1; }
+
+          # Espera breve para que bg deje huella
+          sleep 6
+          cat bg.log || true
+
+          echo "=== Fin ==="
+
+      # 4) Subir artifacts con v4 (nombres únicos en la corrida)
+      - name: Upload main artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: output-files
+          name: system-automation-output-ubuntu # nombre único
+          path: |
+            output.txt
+            bg.log
+          if-no-files-found: error
 
