@@ -2,8 +2,9 @@ name: CI Pipeline Multi-OS
 
 on:
   workflow_dispatch:
+  pull_request:
     branches: [ main ]
-  workflow_dispatch:
+ 
 
 jobs:
   test-multi-platform:
