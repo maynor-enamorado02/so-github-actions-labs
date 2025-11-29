@@ -1,4 +1,5 @@
-name: System Automation Workflow
+name: Advanced System Automation
+
 on:
   workflow_dispatch:
     inputs:
@@ -6,76 +7,74 @@ on:
         description: 'Target environment'
         required: true
         default: 'production'
-      cleanup:
-        description: 'Cleanup after execution'
-        type: boolean
-        default: true
 
 env:
-  REPO_URL: 'https://github.com/maynor-enamorado02/https://github.com/maynor-enamorado02/so-github-actions-labs.git'
-  BRANCH: 'main'
   WORKING_DIR: './automation-workspace'
   ARTIFACTS_DIR: './artifacts'
 
 jobs:
   system-automation:
-    name: System Automation
-    runs-on: ${{ matrix.os }}
-    
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
+    runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout workflow code
+    - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Clone target repository
+    - name: Setup workspace
       run: |
-        git clone ${{ env.REPO_URL }} ${{ env.WORKING_DIR }}
-        cd ${{ env.WORKING_DIR }}
-        git checkout ${{ env.BRANCH }}
+        mkdir -p ${{ env.WORKING_DIR }}
+        mkdir -p ${{ env.ARTIFACTS_DIR }}
     
-    - name: Create artifacts directory
-      run: mkdir -p ${{ env.ARTIFACTS_DIR }}
-    
-    - name: Execute system automation script
-      id: automation
-      env:
-        ENVIRONMENT: ${{ github.event.inputs.environment }}
-        SECRET_API_KEY: ${{ secrets.API_KEY }}
-        SECRET_DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+    - name: Create script file
       run: |
         cd ${{ env.WORKING_DIR }}
-        if [ "$RUNNER_OS" == "Windows" ]; then
-          powershell -ExecutionPolicy Bypass -File ./automation-script.ps1
-        else
-          chmod +x ./automation-script.sh
-          ./automation-script.sh
-        fi
-      continue-on-error: false
+        
+        # Crear el script en un archivo separado primero
+        cat > script-content.sh << 'CONTENT_EOF'
+#!/bin/bash
+set -e
+
+echo "=== SYSTEM AUTOMATION STARTED ==="
+echo "Environment: $1"
+echo "Working dir: $(pwd)"
+echo "User: $(whoami)"
+echo ""
+
+echo "Creating directory structure..."
+mkdir -p config logs
+
+echo "Performing file operations..."
+echo "environment: $1" > config/system.conf
+echo "timestamp: $(date)" >> config/system.conf
+
+echo "Managing permissions..."
+chmod 755 automation-script.sh
+chmod 644 config/system.conf
+
+echo "Generating system artifacts..."
+uname -a > ../artifacts/system_info.txt
+df -h > ../artifacts/disk_usage.txt
+ps aux > ../artifacts/process_list.txt
+
+echo "=== AUTOMATION COMPLETED SUCCESSFULLY ==="
+CONTENT_EOF
+        
+        # Mover el contenido al script final
+        mv script-content.sh automation-script.sh
+        chmod +x automation-script.sh
     
-    - name: Handle script success
-      if: steps.automation.outcome == 'success'
+    - name: Run automation
       run: |
-        echo "Automation script completed successfully"
-        echo "Environment: ${{ github.event.inputs.environment }}"
+        cd ${{ env.WORKING_DIR }}
+        ./automation-script.sh "${{ github.event.inputs.environment }}"
     
-    - name: Handle script failure
-      if: steps.automation.outcome == 'failure'
-      run: |
-        echo "Automation script failed with exit code ${{ steps.automation.exit_code }}"
-        exit 1
-    
-    - name: Collect and upload artifacts
+    - name: Upload results
       uses: actions/upload-artifact@v4
       with:
-        name: system-artifacts-${{ matrix.os }}
+        name: automation-output
         path: ${{ env.ARTIFACTS_DIR }}
-        retention-days: 7
     
-    - name: Cleanup workspace
-      if: github.event.inputs.cleanup == 'true'
+    - name: Cleanup
       run: |
         rm -rf ${{ env.WORKING_DIR }}
         echo "Cleanup completed"
