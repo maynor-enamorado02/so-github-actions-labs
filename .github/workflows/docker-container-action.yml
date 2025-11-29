@@ -1,1 +1,45 @@
+name: Docker Container Workflow
 
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  docker-workflow:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout del código
+      uses: actions/checkout@v4
+
+    - name: Construir imagen Docker
+      run: |
+        docker build -t my-app:latest .
+        docker images
+
+    - name: Ejecutar contenedor
+      run: |
+        docker run -d --name my-running-app -p 5000:5000 \
+          -e PYTHON_VERSION=3.9 \
+          my-app:latest
+        sleep 10
+        docker ps
+
+    - name: Probar comunicación
+      run: |
+        apt-get update && apt-get install -y curl jq
+        echo "=== Test de endpoints ==="
+        curl -s http://localhost:5000/ | jq .
+        curl -s http://localhost:5000/health | jq .
+
+    - name: Monitorear recursos
+      run: |
+        echo "=== Recursos del contenedor ==="
+        docker stats my-running-app --no-stream
+
+    - name: Limpiar
+      if: always()
+      run: |
+        docker stop my-running-app || true
+        docker rm my-running-app || true
