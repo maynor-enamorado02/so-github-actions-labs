@@ -1,0 +1,68 @@
+
+name: Docker Container Action
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  docker-container:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: List repo files (debug)
+        run: |
+          echo "Workspace:"
+          ls -la
+          echo "app/:"
+          ls -la app || true
+
+      - name: Build Docker image
+        run: |
+          docker build -t demo-container:latest .
+
+      - name: Run container
+        run: |
+          mkdir -p host_exchange
+          docker rm -f demo || true
+          docker run -d --name demo \
+            -p 8080:8080 \
+            -v "${{ github.workspace }}/host_exchange:/app/exchange" \
+            demo-container:latest
+          sleep 3
+
+      - name: Test container-host communication (HTTP + volume)
+        run: |
+          curl -sS http://localhost:8080/ | tee container_response.json
+          ls -la host_exchange
+          cat host_exchange/from-container.json || true
+
+      - name: Monitor resources (CPU/Mem)
+        run: |
+          docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" | tee docker_stats.txt
+          docker top demo | tee docker_top.txt
+          docker inspect demo | tee docker_inspect.json
+
+      - name: Container logs
+        run: |
+          docker logs demo | tee container_logs.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-evidences
+          path: |
+            container_response.json
+            docker_stats.txt
+            docker_top.txt
+            docker_inspect.json
+            container_logs.txt
+            host_exchange/from-container.json
+
+      - name: Stop and cleanup
+        if: always()
+        run: |
+          docker rm -f demo || true
