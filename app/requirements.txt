@@ -1,0 +1,2 @@
+# app/requirements.txt
+# Usamos la librería estándar http.server, por lo que no requerimos frameworks.
