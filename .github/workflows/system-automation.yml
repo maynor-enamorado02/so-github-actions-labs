@@ -3,52 +3,21 @@ name: System Automation Workflow
 
 on:
   workflow_dispatch:
-    inputs:
-      environment:
-        description: "Entorno de ejecución (dev/stage/prod)"
-        type: choice
-        required: true
-        options:
-          - dev
-          - stage
-          - prod
-        default: dev
-      verbose:
-        description: "Logs detallados"
-        type: boolean
-        required: false
-        default: true
-  push:
-    branches:
-      - main
+  pull_request:
 
 jobs:
   automation:
-    runs-on: windows-latest 
-
+    runs-on: windows-latest  
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Set environment variables from secrets
+      - name: Set environment variables
         run: |
           echo "MY_SECRET=${{ secrets.MY_SECRET }}" >> $GITHUB_ENV
-          echo "ENVIRONMENT=${{ github.event.inputs.environment }}" >> $GITHUB_ENV
-          echo "VERBOSE=${{ github.event.inputs.verbose }}" >> $GITHUB_ENV
 
       - name: Run Bash script
-        shell: bash
         run: |
-          set -e
-          echo "Entorno: $ENVIRONMENT"
-          [[ "$VERBOSE" == "true" ]] && set -x
-
           chmod +x ./scripts/system-script.sh
-          ./scripts/system-script.sh
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: system-artifacts
-          path: artifacts/
 
