@@ -12,7 +12,7 @@ on:
         default: true
 
 env:
-  REPO_URL: 'https://github.com/tu-usuario/tu-repositorio.git'
+  REPO_URL: 'https://github.com/maynor-enamorado02/https://github.com/maynor-enamorado02/so-github-actions-labs.git'
   BRANCH: 'main'
   WORKING_DIR: './automation-workspace'
   ARTIFACTS_DIR: './artifacts'
