@@ -1,1 +1,34 @@
-
+{
+  "name": "ci-pipeline-demo",
+  "version": "1.0.0",
+  "description": "Proyecto de demostración para CI Pipeline",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint .",
+    "build": "mkdir -p dist && echo 'Build completado' > dist/build.txt",
+    "start": "node index.js"
+  },
+  "keywords": ["ci", "github-actions", "testing"],
+  "author": "Tu Nombre",
+  "license": "MIT",
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "jest": {
+    "collectCoverageFrom": [
+      "**/*.js",
+      "!**/node_modules/**",
+      "!**/coverage/**"
+    ],
+    "coverageDirectory": "coverage",
+    "testEnvironment": "node"
+  }
+}
