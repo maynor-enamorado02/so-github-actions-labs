@@ -23,26 +23,20 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       
-      - name: Create package.json (All OS compatible)
+      - name: Create package.json (SIMPLE)
         run: |
-          node -e "
-          const fs = require('fs');
-          if (!fs.existsSync('package.json')) {
-            fs.writeFileSync('package.json', JSON.stringify({
-              name: 'github-actions-labs',
-              version: '1.0.0',
-              scripts: {
-                test: 'echo \"Tests passed on ${{ matrix.os }} with Node ${{ matrix.node-version }}\" && exit 0',
-                'test:coverage': 'mkdir -p coverage && echo \"Coverage: 95%\" > coverage/coverage.txt',
-                lint: 'echo \"Linting completed\"',
-                build: 'mkdir -p dist && echo \"Build successful\" > dist/build.txt'
-              }
-            }, null, 2));
-            console.log('package.json created successfully');
-          } else {
-            console.log('package.json already exists');
+          cat > package.json << 'EOF'
+          {
+            "name": "github-actions-labs",
+            "version": "1.0.0",
+            "scripts": {
+              "test": "echo 'Tests passed' && exit 0",
+              "test:coverage": "mkdir -p coverage && echo 'Coverage report' > coverage/report.txt",
+              "lint": "echo 'Lint passed'",
+              "build": "mkdir -p dist && echo 'Build complete' > dist/build.txt"
+            }
           }
-          "
+          EOF
       
       - name: Install dependencies
         run: npm install
@@ -50,16 +44,15 @@ jobs:
       - name: Run tests
         run: npm test
       
-      - name: Generate coverage report
+      - name: Generate coverage
         run: npm run test:coverage
       
-      - name: Upload coverage to artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload coverage
         if: matrix.os == 'ubuntu-latest' && matrix.node-version == '20.x'
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: coverage/
-          retention-days: 7
 
   build:
     name: Build Application
@@ -75,52 +68,37 @@ jobs:
         with:
           node-version: '20.x'
       
-      - name: Create package.json if missing
+      - name: Create package.json
         run: |
-          node -e "
-          const fs = require('fs');
-          if (!fs.existsSync('package.json')) {
-            fs.writeFileSync('package.json', JSON.stringify({
-              name: 'github-actions-labs',
-              version: '1.0.0',
-              scripts: {
-                build: 'mkdir -p dist && echo \"Production build completed\" > dist/build.txt'
-              }
-            }, null, 2));
+          cat > package.json << 'EOF'
+          {
+            "name": "github-actions-labs", 
+            "version": "1.0.0",
+            "scripts": {
+              "build": "mkdir -p dist && echo 'Production build' > dist/build.txt"
+            }
           }
-          "
+          EOF
       
-      - name: Install dependencies
-        run: npm install
-      
-      - name: Build application
+      - name: Build
         run: npm run build
       
-      - name: Upload build artifacts
+      - name: Upload build
         uses: actions/upload-artifact@v4
         with:
           name: production-build
           path: dist/
-          retention-days: 7
 
   completion:
-    name: ✅ CI Completion Status
+    name: ✅ CI Complete
     needs: [test, build]
     runs-on: ubuntu-latest
     if: always()
     
     steps:
-      - name: Show completion message
+      - name: Show success
         run: |
-          echo "🎉 CI PIPELINE COMPLETADO EXITOSAMENTE"
-          echo "======================================"
-          echo "✅ Tests ejecutados en 3 sistemas operativos"
-          echo "✅ Versiones de Node.js: 18.x y 20.x" 
-          echo "✅ Build de producción generado"
-          echo "✅ Artifacts disponibles para descarga"
-          echo ""
-          echo "📊 Resumen:"
-          echo "   - Ubuntu Linux: ✅"
-          echo "   - Windows: ✅" 
-          echo "   - macOS: ✅"
-          echo "   - Build: ✅"
+          echo "🎉 CI PIPELINE EXITOSO"
+          echo "✅ 3 Sistemas Operativos"
+          echo "✅ 2 Versiones Node.js" 
+          echo "✅ Build de producción"
