@@ -6,18 +6,40 @@ on:
   pull_request:
 
 jobs:
-  automation:
-    runs-on: windows-latest  
+  automation-job:
+    runs-on: windows-latest  # Puedes cambiar a ubuntu-latest si prefieres Bash
+
     steps:
+      # 1. Clonar el repositorio
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # 2. Configurar variables de entorno y secretos
       - name: Set environment variables
         run: |
-          echo "MY_SECRET=${{ secrets.MY_SECRET }}" >> $GITHUB_ENV
+          echo "MY_ENV_VAR=HelloWorld" >> $env:GITHUB_ENV
+        shell: pwsh
 
-      - name: Run Bash script
+      # 3. Ejecutar script PowerShell
+      - name: Run PowerShell script
         run: |
-          chmod +x ./scripts/system-script.sh
+          # Leer y escribir archivos
+          $filePath = "output.txt"
+          "Este es un archivo generado por el workflow" | Out-File $filePath
 
+          # Gestionar permisos (icacls en Windows)
+          icacls $filePath /grant Everyone:F
+
+          # Crear proceso en segundo plano
+          Start-Process -FilePath "notepad.exe" -WindowStyle Hidden
+
+          # Mostrar variable de entorno
+          Write-Host "Variable: $env:MY_ENV_VAR"
+        shell: pwsh
+
+      # 4. Generar artefactos
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: output-file
 
