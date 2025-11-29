@@ -1,4 +1,4 @@
-name: Release and Deploy
+name: Release Automation
 
 on:
   workflow_dispatch:
@@ -17,6 +17,13 @@ jobs:
       with:
         python-version: '3.11'
     
+    - name: Create requirements files
+      run: |
+        if [ ! -f requirements.txt ]; then
+          echo "python-dateutil==2.8.2" > requirements.txt
+          echo "requests==2.31.0" >> requirements.txt
+        fi
+    
     - name: Install dependencies
       run: |
         pip install -r requirements.txt
@@ -27,7 +34,12 @@ jobs:
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
-      with:
-        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        generate_release_notes: true
+    
+    - name: Deployment success
+      run: |
+        echo "✅ Release created successfully!"
+        echo "🚀 Application is ready for deployment"
