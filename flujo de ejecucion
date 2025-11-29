@@ -1,0 +1,90 @@
+El archivo .github/workflows/system-automation.yml define tres jobs:
+
+automation-windows → Ejecuta el script en Windows usando PowerShell.
+automation-linux → Ejecuta el script en Linux usando Bash.
+consume-artifacts → Descarga los artifacts generados por los dos jobs anteriores y los combina.
+
+Cada job corre en paralelo (excepto el tercero, que depende de los dos primeros).
+
+Job 1: automation-windows
+
+Checkout
+Usa actions/checkout@v4 para clonar el repositorio en el runner.
+
+
+Set environment variables
+
+Crea una variable MY_ENV_VAR y opcionalmente expone un secreto (MY_SECRET) si existe.
+Esto se guarda en $env:GITHUB_ENV para que esté disponible en los siguientes pasos.
+
+
+
+Run PowerShell script (manejo de errores)
+
+Escribe un archivo output-windows.txt con información (fecha, variable, secreto).
+Aplica permisos completos con icacls "Everyone:(F)".
+Inicia un proceso en segundo plano (Start-Process powershell.exe Start-Sleep).
+Si algo falla, captura el error con try/catch y hace exit 1 para marcar el job como fallido.
+
+
+
+Upload artifact (v4)
+
+Sube output-windows.txt (y opcionalmente un ZIP si lo generas) como artifact llamado system-automation-windows.
+
+
+
+
+Job 2: automation-linux
+
+
+Checkout
+Igual que en Windows.
+
+
+Set environment variables
+
+Define MY_ENV_VAR y opcionalmente el secreto.
+
+
+
+Run Bash script (manejo de errores)
+
+Usa set -euo pipefail y trap para manejar errores.
+Crea output-linux.txt con datos.
+Aplica permisos con chmod 644.
+Inicia un proceso en segundo plano con nohup bash -c 'sleep 5' &.
+
+
+
+Upload artifact (v4)
+
+Sube output-linux.txt como artifact llamado system-automation-linux.
+
+
+
+
+Job 3: consume-artifacts
+
+
+Descarga artifacts
+
+Usa actions/download-artifact@v4 con pattern: system-automation-* y merge-multiple: true para traer ambos artifacts a artifacts/.
+
+
+
+Lista archivos
+
+Muestra el contenido descargado.
+
+
+
+Concatena outputs
+
+Une output-windows.txt y output-linux.txt en combined.txt.
+
+
+
+Sube artifact combinado
+
+Sube combined.txt como artifact final.
