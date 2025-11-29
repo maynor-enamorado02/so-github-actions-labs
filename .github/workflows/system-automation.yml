@@ -1,0 +1,81 @@
+name: System Automation Workflow
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'production'
+      cleanup:
+        description: 'Cleanup after execution'
+        type: boolean
+        default: true
+
+env:
+  REPO_URL: 'https://github.com/tu-usuario/tu-repositorio.git'
+  BRANCH: 'main'
+  WORKING_DIR: './automation-workspace'
+  ARTIFACTS_DIR: './artifacts'
+
+jobs:
+  system-automation:
+    name: System Automation
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    
+    steps:
+    - name: Checkout workflow code
+      uses: actions/checkout@v4
+    
+    - name: Clone target repository
+      run: |
+        git clone ${{ env.REPO_URL }} ${{ env.WORKING_DIR }}
+        cd ${{ env.WORKING_DIR }}
+        git checkout ${{ env.BRANCH }}
+    
+    - name: Create artifacts directory
+      run: mkdir -p ${{ env.ARTIFACTS_DIR }}
+    
+    - name: Execute system automation script
+      id: automation
+      env:
+        ENVIRONMENT: ${{ github.event.inputs.environment }}
+        SECRET_API_KEY: ${{ secrets.API_KEY }}
+        SECRET_DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      run: |
+        cd ${{ env.WORKING_DIR }}
+        if [ "$RUNNER_OS" == "Windows" ]; then
+          powershell -ExecutionPolicy Bypass -File ./automation-script.ps1
+        else
+          chmod +x ./automation-script.sh
+          ./automation-script.sh
+        fi
+      continue-on-error: false
+    
+    - name: Handle script success
+      if: steps.automation.outcome == 'success'
+      run: |
+        echo "Automation script completed successfully"
+        echo "Environment: ${{ github.event.inputs.environment }}"
+    
+    - name: Handle script failure
+      if: steps.automation.outcome == 'failure'
+      run: |
+        echo "Automation script failed with exit code ${{ steps.automation.exit_code }}"
+        exit 1
+    
+    - name: Collect and upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: system-artifacts-${{ matrix.os }}
+        path: ${{ env.ARTIFACTS_DIR }}
+        retention-days: 7
+    
+    - name: Cleanup workspace
+      if: github.event.inputs.cleanup == 'true'
+      run: |
+        rm -rf ${{ env.WORKING_DIR }}
+        echo "Cleanup completed"
