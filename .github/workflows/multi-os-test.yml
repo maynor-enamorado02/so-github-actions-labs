@@ -1,1 +1,57 @@
 
+name: Multi-OS Workflow
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  system-info:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Print system info
+        run: |
+          echo "OS: $(uname -a)"
+          echo "Architecture: $(uname -m)"
+          echo "Environment Variables:"
+          env
+        shell: bash
+        if: runner.os != 'Windows'
+
+      - name: Print system info (Windows)
+        run: |
+          Write-Host "OS: $(Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version)"
+          Write-Host "Architecture: $(Get-CimInstance Win32_Processor | Select-Object Architecture)"
+          Write-Host "Environment Variables:"
+          Get-ChildItem Env:
+        shell: pwsh
+        if: runner.os == 'Windows'
+
+      - name: OS-specific command
+        run: |
+          echo "Running OS-specific command"
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            echo "Linux command: ls -la"
+            ls -la
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            echo "macOS command: sw_vers"
+            sw_vers
+          fi
+        shell: bash
+        if: runner.os != 'Windows'
+
+      - name: OS-specific command (Windows)
+        run: |
+          Write-Host "Windows command: dir"
+          dir
+        shell: pwsh
+        if: runner.os == 'Windows'
+
