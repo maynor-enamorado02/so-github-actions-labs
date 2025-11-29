@@ -1,0 +1,38 @@
+
+from flask import Flask, jsonify, render_template
+import os
+import platform
+from datetime import datetime
+
+APP_VERSION = os.getenv('APP_VERSION', '0.1.0')
+APP_ENV = os.getenv('APP_ENV', 'development')
+
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    info = {
+        'timestamp': datetime.utcnow().isoformat() + 'Z',
+        'python_version': platform.python_version(),
+        'platform': platform.platform(),
+        'machine': platform.machine(),
+        'processor': platform.processor(),
+        'env': {
+            'APP_ENV': APP_ENV,
+            'APP_VERSION': APP_VERSION
+        }
+    }
+    return render_template('index.html', info=info)
+
+# API route: health
+@app.route('/api/health')
+def health():
+    return jsonify({'status': 'ok', 'version': APP_VERSION, 'env': APP_ENV})
+
+# API route: echo (second endpoint)
+@app.route('/api/echo/<msg>')
+def echo(msg):
+    return jsonify({'echo': msg, 'len': len(msg)})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', '5000')), debug=True)
