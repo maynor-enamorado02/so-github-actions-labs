@@ -1,1 +1,194 @@
 
+<#
+.SYNOPSIS
+  Funciones de utilidad para tareas del sistema en Windows.
+
+.DESCRIPTION
+  Proporciona funciones para lecturas/escrituras de archivos, permisos,
+  procesos en segundo plano y manejo de errores.
+#>
+
+Set-StrictMode -Version Latest
+
+function Write-Log {
+    param(
+        [Parameter(Mandatory=$true)][string]$Message,
+        [ValidateSet('INFO','WARN','ERROR')][string]$Level = 'INFO'
+    )
+    $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    Write-Host "[$ts][$Level] $Message"
+}
+
+function Ensure-File {
+    param(
+        [Parameter(Mandatory=$true)][string]$Path,
+        [string]$Content = ""
+    )
+    try {
+        New-Item -ItemType File -Path $Path -Force | Out-Null
+        if ($Content) { $Content | Out-File -FilePath $Path -Encoding UTF8 }
+        Write-Log "Archivo asegurado: $Path"
+        return $true
+    } catch {
+        Write-Log "No se pudo crear/escribir archivo $Path. $_" 'ERROR'
+        return $false
+    }
+}
+
+function Grant-FullControl {
+    param(
+        [Parameter(Mandatory=$true)][string]$Path,
+        [string]$Identity = "Everyone"
+    )
+    try {
+        # Sintaxis correcta: permisos entre comillas
+        icacls $Path /grant "$Identity:(F)" | Out-Null
+        Write-Log "Permisos otorgados (F) a '$Identity' sobre '$Path'"
+        return $true
+    } catch {
+        Write-Log "Fallo asignando permisos con icacls: $_" 'ERROR'
+        return $false
+    }
+}
+
+function Start-BackgroundProcess {
+    param(
+        [Parameter(Mandatory=$true)][string]$Command,
+        [string]$Arguments = "",
+        [switch]$Hidden
+    )
+    try {
+        $style = if ($Hidden) { 'Hidden' } else { 'Normal' }
+        $p = Start-Process -FilePath $Command -ArgumentList $Arguments -WindowStyle $style -PassThru
+        Write-Log "Proceso en segundo plano iniciado. PID=$($p.Id). Cmd='$Command $Arguments'"
+        return $p.Id
+    } catch {
+        Write-Log "No se pudo iniciar proceso en segundo plano: $_" 'ERROR'
+        return $null
+    }
+}
+
+function Safe-Exit {
+    param(
+        [int]$Code = 0,
+        [string]$Message = ""
+    )
+    if ($Message) {
+        $level = if ($Code -eq 0) { 'INFO' } else { 'ERROR' }
+        Write-Log $Message $level
+    }
+    exit $Code
+}
+
+function Zip-Files {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string[]]$Paths,
+        [Parameter(Mandatory=$true)][string]$ZipPath
+    )
+    try {
+        if (Test-Path $ZipPath) { Remove-Item -Force $ZipPath }
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $temp = New-Item -ItemType Directory -Path (Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString())) -Force
+        foreach ($p in $Paths) {
+            if (Test-Path $p) {
+                Copy-Item -Path $p -Destination $temp.FullName -Recurse -Force
+            } else {
+                Write-Log "Ruta no encontrada para ZIP: $p" 'WARN'
+            }
+        }
+        [System.IO.Compression.ZipFile]::CreateFromDirectory($temp.FullName, $ZipPath)
+        Remove-Item -Recurse -Force $temp
+        Write-Log "ZIP creado: $ZipPath"
+        return $true
+    } catch {
+        Write-Log "Error creando ZIP '$ZipPath': $_" 'ERROR'
+        return $false
+    }
+}
+
+
+<#
+.SYNOPSIS
+  Script principal para el workflow: lectura/escritura, permisos, proceso en segundo plano,
+  variables de entorno/secretos y creación de artifact.
+
+.PARAMETER OutputPath
+  Ruta del archivo de salida a generar.
+
+.PARAMETER Identity
+  Identidad a la que se le otorga permisos (por defecto Everyone).
+
+.PARAMETER MakeZip
+  Si se indica, empaqueta archivos de salida en un ZIP para subir como artifact.
+
+.NOTES
+  - Usa helpers.ps1 (cargar con . .\helpers.ps1)
+  - Devuelve códigos de salida apropiados (0 éxito, 1 error).
+#>
+
+param(
+    [string]$OutputPath = "output-windows.txt",
+    [string]$Identity = "Everyone",
+    [switch]$MakeZip
+)
+
+Set-StrictMode -Version Latest
+
+# Cargar helpers
+$helpers = Join-Path $PSScriptRoot "helpers.ps1"
+if (-not (Test-Path $helpers)) {
+    Write-Host "No se encontró helpers.ps1 en $PSScriptRoot" -ForegroundColor Red
+    exit 1
+}
+. $helpers
+
+try {
+    Write-Log "Inicio del script de automatización (PowerShell)"
+
+    # 1) Variables de entorno y secretos (si existen en el runner)
+    $envVar = $env:MY_ENV_VAR
+    $secretPresent = [string]::IsNullOrEmpty($env:MY_SECRET_RUNTIME) -eq $false
+    Write-Log "MY_ENV_VAR='${envVar}' (puede estar vacío)"
+    if ($secretPresent) { Write-Log "Secreto presente (no se imprime su valor por seguridad)" }
+
+    # 2) Leer/escribir archivo
+    $content = @(
+        "Archivo generado por PowerShell",
+        "Fecha: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')",
+        "Var de entorno: $envVar",
+        "Secreto presente: $secretPresent"
+    ) -join [Environment]::NewLine
+
+    if (-not (Ensure-File -Path $OutputPath -Content $content)) {
+        Safe-Exit -Code 1 -Message "Fallo creando/escribiendo $OutputPath"
+    }
+
+    # 3) Gestionar permisos (icacls) — sintaxis corregida
+    if (-not (Grant-FullControl -Path $OutputPath -Identity $Identity)) {
+        Safe-Exit -Code 1 -Message "Fallo asignando permisos a $OutputPath"
+    }
+
+    # 4) Crear proceso en segundo plano (ejemplo: sleep 5s)
+    $pid = Start-BackgroundProcess -Command "powershell.exe" -Arguments "Start-Sleep -Seconds 5" -Hidden
+    if ($null -eq $pid) {
+        Safe-Exit -Code 1 -Message "No se pudo iniciar el proceso en segundo plano"
+    }
+
+    # 5) (Opcional) Empaquetar en ZIP para artifact
+    if ($MakeZip) {
+        $zipPath = "artifact-output.zip"
+        if (-not (Zip-Files -Paths @($OutputPath) -ZipPath $zipPath)) {
+            Safe-Exit -Code 1 -Message "Fallo creando ZIP de artifact"
+        }
+        Write-Log "ZIP listo para subir: $zipPath"
+    }
+
+    Safe-Exit -Code 0 -Message "Script completado correctamente."
+}
+catch {
+    Write-Log "ERROR no controlado: $($_.Exception.Message)" 'ERROR'
+    Safe-Exit -Code 1
+}
+
+
